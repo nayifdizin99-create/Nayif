@@ -1,0 +1,138 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nayif Racing</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+body{margin:0;background:#101827;color:white;font-family:Arial;text-align:center}
+h1{color:#ffcc00}
+button,input{padding:14px;margin:7px;border:0;border-radius:10px;font-size:16px}
+button{background:#ffcc00;font-weight:bold}
+#game{display:none}
+canvas{background:#333;border:4px solid white;width:95%;max-width:600px}
+.controls button{font-size:25px;width:65px}
+#status{color:#7cff9b}
+</style>
+</head>
+<body>
+<h1>🏎️ NAYIF RACING</h1>
+<p>Arkadaşlarınla yarış!</p>
+<div id="menu">
+<button onclick="createRoom()">ODA OLUŞTUR</button>
+<br>
+<input id="room" placeholder="Arkadaşının oda kodu">
+<button onclick="joinRoom()">ODAYA KATIL</button>
+<p id="status">Oyuna hoş geldin!</p>
+</div>
+<div id="game">
+<h2>🏁 YARIŞ BAŞLADI!</h2>
+<p>Oda kodu: <b id="code"></b></p>
+<canvas id="canvas" width="600" height="350"></canvas>
+<div class="controls">
+<button onpointerdown="move=1" onpointerup="move=0" onpointerleave="move=0">🚗 İLERİ</button>
+<button onclick="move=0">DUR</button>
+</div>
+<p id="players"></p>
+</div>
+<script>
+let peer,conn,host=false,move=0;
+let id="P"+Math.random().toString(36).slice(2,7);
+let cars={};
+let progress=0;
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+function createRoom(){
+ host=true;
+ let room="NAYIF"+Math.floor(1000+Math.random()*9000);
+ peer=new Peer(room);
+ peer.on("open",()=>{
+  document.getElementById("code").textContent=room;
+  document.getElementById("status").textContent="Oda hazır! Kodunu arkadaşlarına gönder.";
+  start();
+ });
+ peer.on("connection",c=>{
+  c.on("data",d=>{
+   cars[d.id]=d.progress;
+  });
+  c.on("open",()=>{conn=c});
+ });
+ peer.on("error",e=>document.getElementById("status").textContent="Bağlantı hatası: "+e.type);
+}
+
+function joinRoom(){
+ host=false;
+ let room=document.getElementById("room").value.trim().toUpperCase();
+ if(!room){alert("Oda kodunu yaz!");return}
+ peer=new Peer();
+ peer.on("open",()=>{
+  conn=peer.connect(room);
+  conn.on("open",()=>{
+   document.getElementById("code").textContent=room;
+   document.getElementById("status").textContent="Odaya bağlandın!";
+   start();
+  });
+  conn.on("data",d=>{cars=d.cars||{}});
+ });
+ peer.on("error",()=>alert("Oda bulunamadı veya bağlantı kurulamadı."));
+}
+
+function start(){
+ document.getElementById("menu").style.display="none";
+ document.getElementById("game").style.display="block";
+ cars[id]=0;
+ requestAnimationFrame(loop);
+}
+
+function loop(){
+ if(move)progress=Math.min(100,progress+0.12);
+ cars[id]=progress;
+
+ if(host && conn && conn.open){
+  conn.send({cars});
+ }
+ if(!host && conn && conn.open){
+  conn.send({id,progress});
+ }
+ draw();
+ document.getElementById("players").textContent=
+ "Senin ilerlemen: "+Math.floor(progress)+"%";
+ if(progress>=100){
+  ctx.fillStyle="yellow";
+  ctx.font="35px Arial";
+  ctx.fillText("KAZANDIN! 🏆",170,180);
+ }
+ requestAnimationFrame(loop);
+}
+
+function draw(){
+ ctx.clearRect(0,0,600,350);
+ ctx.fillStyle="#286b35";
+ ctx.fillRect(0,0,600,350);
+ ctx.fillStyle="#444";
+ ctx.fillRect(0,35,600,280);
+ ctx.strokeStyle="white";
+ ctx.setLineDash([20,15]);
+ ctx.lineWidth=4;
+ ctx.beginPath();ctx.moveTo(0,175);ctx.lineTo(600,175);ctx.stroke();
+ ctx.setLineDash([]);
+ ctx.fillStyle="white";
+ ctx.fillRect(565,35,8,280);
+ let i=0;
+ for(let key in cars){
+  ctx.fillStyle=key===id?"#ffcc00":"#35aaff";
+  let x=20+cars[key]*5.3;
+  let y=65+i*90;
+  ctx.fillRect(x,y,30,42);
+  ctx.fillStyle="white";
+  ctx.font="12px Arial";
+  ctx.fillText(key===id?"SEN":"ARKADAŞ",x-5,y-8);
+  i++;
+ }
+}
+</script>
+</body>
+</html>
